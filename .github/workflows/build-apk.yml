@@ -14,36 +14,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cari file ZIP aplikasi
-        id: find_zip
+      - name: Cari dan ekstrak project Flutter
         run: |
-          ZIP_FILE=$(find . -maxdepth 1 -type f -name "*.zip" | head -n 1)
-
-          if [ -z "$ZIP_FILE" ]; then
-            echo "Tidak ditemukan file ZIP aplikasi."
-            exit 1
-          fi
-
-          echo "ZIP ditemukan: $ZIP_FILE"
-          echo "ZIP_FILE=$ZIP_FILE" >> "$GITHUB_ENV"
-
-      - name: Extract aplikasi
-        run: |
-          rm -rf app
           mkdir app
+          ZIP_FILE=$(find . -maxdepth 1 -type f -name "*.zip" | head -n 1)
           unzip -q "$ZIP_FILE" -d app
-
-      - name: Cari folder Flutter
-        id: find_project
-        run: |
-          PROJECT_DIR=$(find app -name pubspec.yaml -printf '%h\n' | head -n 1)
-
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "pubspec.yaml tidak ditemukan."
-            exit 1
-          fi
-
-          echo "Flutter project: $PROJECT_DIR"
+          PROJECT_DIR=$(find app -name pubspec.yaml -print -quit | xargs dirname)
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
       - name: Setup Flutter
@@ -51,18 +27,19 @@ jobs:
         with:
           channel: stable
 
-      - name: Flutter Doctor
-        run: flutter doctor -v
+      - name: Buat platform Android
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: flutter create . --platforms=android
 
-      - name: Get dependencies
+      - name: Ambil dependencies
         working-directory: ${{ env.PROJECT_DIR }}
         run: flutter pub get
 
-      - name: Build APK
+      - name: Buat APK Release
         working-directory: ${{ env.PROJECT_DIR }}
         run: flutter build apk --release
 
-      - name: Upload APK
+      - name: Simpan APK
         uses: actions/upload-artifact@v4
         with:
           name: kalkulator-kurs-apk
