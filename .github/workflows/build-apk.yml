@@ -14,33 +14,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cari dan ekstrak project Flutter
-        run: |
-          mkdir app
-          ZIP_FILE=$(find . -maxdepth 1 -type f -name "*.zip" | head -n 1)
-          unzip -q "$ZIP_FILE" -d app
-          PROJECT_DIR=$(find app -name pubspec.yaml -print -quit | xargs dirname)
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
 
       - name: Buat platform Android
-        working-directory: ${{ env.PROJECT_DIR }}
         run: flutter create . --platforms=android
 
       - name: Ambil dependencies
-        working-directory: ${{ env.PROJECT_DIR }}
         run: flutter pub get
 
-      - name: Buat APK Release
-        working-directory: ${{ env.PROJECT_DIR }}
+      - name: Build APK Release
         run: flutter build apk --release
 
       - name: Simpan APK
         uses: actions/upload-artifact@v4
         with:
           name: kalkulator-kurs-apk
-          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
