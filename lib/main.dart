@@ -56,55 +56,87 @@ class _CurrencyCalculatorState extends State<CurrencyCalculator> {
   String? error;
 
   Future<void> convertCurrency() async {
-    final amount = double.tryParse(
-      amountController.text.replaceAll(',', '.'),
+  final amount = double.tryParse(
+    amountController.text.replaceAll(' ', '').replaceAll(',', '.'),
+  );
+
+  if (amount == null) {
+    setState(() {
+      error = 'Masukkan jumlah yang benar.';
+      result = null;
+    });
+    return;
+  }
+
+  setState(() {
+    loading = true;
+    error = null;
+  });
+
+  try {
+    final prefs = await SharedPreferences.getInstance();
+
+    final url = Uri.parse(
+      'https://open.er-api.com/v6/latest/$fromCurrency',
     );
 
-    if (amount == null) {
-      setState(() {
-        error = 'Masukkan jumlah yang benar.';
-        result = null;
-      });
-      return;
+    final response = await http.get(url);
+
+    if (response.statusCode != 200) {
+      throw Exception('Gagal mengambil kurs.');
     }
 
+    final data = jsonDecode(response.body);
+
+    if (data['result'] != 'success') {
+      throw Exception('Data kurs tidak tersedia.');
+    }
+
+    final rates = Map<String, dynamic>.from(data['rates']);
+    final selectedRate = (rates[toCurrency] as num).toDouble();
+
+    // Simpan kurs terakhir ke HP
+    await prefs.setDouble(
+      'rate_${fromCurrency}_$toCurrency',
+      selectedRate,
+    );
+
+    // Simpan waktu pembaruan
+    await prefs.setString(
+      'rate_time_${fromCurrency}_$toCurrency',
+      DateTime.now().toIso8601String(),
+    );
+
     setState(() {
-      loading = true;
-      error = null;
+      rate = selectedRate;
+      result = amount * selectedRate;
+      loading = false;
     });
+  } catch (e) {
+    // Jika internet tidak tersedia,
+    // gunakan kurs terakhir yang tersimpan di HP.
+    final prefs = await SharedPreferences.getInstance();
 
-    try {
-      final url = Uri.parse(
-        'https://open.er-api.com/v6/latest/$fromCurrency',
-      );
+    final savedRate = prefs.getDouble(
+      'rate_${fromCurrency}_$toCurrency',
+    );
 
-      final response = await http.get(url);
-
-      if (response.statusCode != 200) {
-        throw Exception('Gagal mengambil kurs.');
-      }
-
-      final data = jsonDecode(response.body);
-
-      if (data['result'] != 'success') {
-        throw Exception('Data kurs tidak tersedia.');
-      }
-
-      final rates = Map<String, dynamic>.from(data['rates']);
-      final selectedRate = (rates[toCurrency] as num).toDouble();
-
+    if (savedRate != null) {
       setState(() {
-        rate = selectedRate;
-        result = amount * selectedRate;
+        rate = savedRate;
+        result = amount * savedRate;
         loading = false;
+        error = 'Offline: menggunakan kurs terakhir yang tersimpan.';
       });
-    } catch (e) {
+    } else {
       setState(() {
         loading = false;
-        error = 'Tidak dapat mengambil kurs. Periksa koneksi internet.';
         result = null;
         rate = null;
-      });
+        error =
+            'Tidak ada internet dan belum ada kurs yang tersimpan.';
+        });
+      }
     }
   }
 
